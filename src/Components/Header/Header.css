@@ -1,44 +1,275 @@
-*{
-    list-style: none;
-}
-.header-outer-container{
-    background-color: rgb(22, 20, 20);
-    background-color:transparent;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    position: sticky;
-    top: 0;
-    height: 10vh;
-    color: white;
-    transition: all 0.5;
-    transition-timing-function: ease-in;
-    z-index: 1;
-}
-.header-container{
-    width: 90%;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-.header-left ul{
-    width: 140%;
-    display: flex;
-    justify-content: space-between;
-    text-align: center;
-    align-items: center;
-}
-li img{
-    width: 60px;
-}
-.header-right{
-    width: 10%;
+.header-outer-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 68px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: #fff;
+  background: linear-gradient(180deg, rgba(17, 17, 17, 0.95) 0%, rgba(17, 17, 17, 0.4) 65%, transparent 100%);
+  transition: background-color 0.35s ease, backdrop-filter 0.35s ease, box-shadow 0.35s ease;
+  z-index: 100;
+  padding: 0 4%;
 }
 
-.header-right ul{
+.header-outer-scrolled {
+  background-color: rgba(17, 17, 17, 0.97);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.85);
+}
 
-display: flex;
-    justify-content: space-between;
-    text-align: center;
-    align-items: center;
+.header-container {
+  width: 100%;
+  max-width: 1600px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* Left: ONLY the Logo */
+.header-brandOnly {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+
+.header-logoImg {
+  height: 32px;
+  width: auto;
+  object-fit: contain;
+  transition: transform 0.2s ease, opacity 0.2s;
+}
+
+.header-logoImg:hover {
+  transform: scale(1.05);
+}
+
+/* Right Group: Search, My List, AI Match ONLY */
+.header-rightGroup {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+/* My List Button */
+.header-listBtn {
+  background: none;
+  border: none;
+  font-size: 0.94rem;
+  font-weight: 500;
+  color: #c7c7c7;
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: color 0.2s ease, background 0.2s ease;
+}
+
+.header-listBtn:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.header-listBtn.active {
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.header-badge {
+  background: #e50914;
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 12px;
+  line-height: 1.2;
+}
+
+/* AI Match Pill */
+.header-aiPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: linear-gradient(135deg, rgba(229, 9, 20, 0.22), rgba(138, 43, 226, 0.35));
+  border: 1px solid rgba(229, 9, 20, 0.45);
+  color: #ffb8bf;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  white-space: nowrap;
+}
+
+.header-aiPill:hover {
+  background: linear-gradient(135deg, rgba(229, 9, 20, 0.45), rgba(150, 50, 240, 0.55));
+  color: #ffffff;
+  box-shadow: 0 0 16px rgba(229, 9, 20, 0.6);
+  transform: translateY(-1px);
+}
+
+.header-aiIcon {
+  font-size: 1rem !important;
+  color: #ff6575;
+}
+
+/* Search Bar */
+.header-searchContainer {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.header-searchBar {
+  display: flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 5px 10px;
+  border-radius: 20px;
+  transition: all 0.25s ease;
+}
+
+.header-searchBar-open,
+.header-searchBar:hover {
+  background: rgba(0, 0, 0, 0.85);
+  border-color: rgba(255, 255, 255, 0.45);
+}
+
+.header-searchIcon {
+  cursor: pointer;
+  font-size: 1.25rem !important;
+  color: #d1d1d1;
+  transition: color 0.2s;
+}
+
+.header-searchIcon:hover {
+  color: #ffffff;
+}
+
+.header-searchInput {
+  width: 120px;
+  background: transparent;
+  border: none;
+  color: #fff;
+  font-size: 0.86rem;
+  outline: none;
+  margin-left: 8px;
+  transition: width 0.25s ease;
+}
+
+.header-searchBar-open .header-searchInput,
+.header-searchInput:focus {
+  width: 200px;
+}
+
+.header-searchClear {
+  font-size: 0.95rem !important;
+  cursor: pointer;
+  color: #888;
+  margin-left: 4px;
+}
+
+.header-searchClear:hover {
+  color: #fff;
+}
+
+/* Floating Search Results Dropdown */
+.header-searchResults {
+  position: absolute;
+  top: 44px;
+  right: 0;
+  width: 320px;
+  max-height: 400px;
+  background: #1a1a1a;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.92);
+  overflow-y: auto;
+  z-index: 200;
+  padding: 6px 0;
+}
+
+.header-searchResults::-webkit-scrollbar {
+  width: 5px;
+}
+.header-searchResults::-webkit-scrollbar-thumb {
+  background: #333;
+  border-radius: 4px;
+}
+
+.header-searchLoading,
+.header-searchEmpty {
+  padding: 16px;
+  text-align: center;
+  font-size: 0.86rem;
+  color: #888;
+}
+
+.header-searchItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.header-searchItem:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.header-searchItemImg {
+  width: 40px;
+  height: 56px;
+  object-fit: cover;
+  border-radius: 4px;
+  background: #222;
+  flex-shrink: 0;
+}
+
+.header-searchItemInfo {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.header-searchItemTitle {
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.header-searchItemMeta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.76rem;
+  color: #aaa;
+  margin-top: 2px;
+}
+
+.header-searchItemRating {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  color: #ffc107;
+}
+
+@media (max-width: 768px) {
+  .header-searchInput {
+    width: 80px;
+  }
+  .header-searchBar-open .header-searchInput,
+  .header-searchInput:focus {
+    width: 140px;
+  }
 }

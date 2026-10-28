@@ -1,14 +1,24 @@
-import React, { useEffect, useState } from 'react';
+// Imports: React hooks, CSS, your custom axios instance, a package to find YouTube trailers, and a YouTube embed component.
+
+import React, { useEffect, useState } from "react";
 import "./row.css";
 import axios from "../../../utils/axios";
 import movieTrailer from "movie-trailer";
 import YouTube from "react-youtube";
 
-const Row = ({ title, fetchUrl, isLargeRow }) => {
+// Defines the Row component with props for the row title, the API endpoint, and a flag for large posters.
+
+const Row = ({ title, fetchUrl, isLargeRow, onSelectMovie }) => {
+  // stores the list of movies fetched from the API.
   const [movies, setMovies] = useState([]);
+
+  // stores the YouTube video ID for the trailer.
   const [trailerUrl, setTrailerUrl] = useState("");
+
+  // base URL for movie images.
   const base_url = "https://image.tmdb.org/t/p/original";
 
+  // Fetches movies from the API when the component mounts or when fetchUrl changes, and saves them to state.
   useEffect(() => {
     (async () => {
       try {
@@ -22,7 +32,18 @@ const Row = ({ title, fetchUrl, isLargeRow }) => {
     })();
   }, [fetchUrl]);
 
+  /*  
+
+# When a movie poster is clicked:
+    - If onSelectMovie is provided, open the Movie Modal with full details.
+    - Otherwise, falls back to inline trailer toggle.
+*/
+
   const handleClick = (movie) => {
+    if (onSelectMovie) {
+      onSelectMovie(movie);
+      return;
+    }
     if (trailerUrl) {
       setTrailerUrl("");
     } else {
@@ -49,28 +70,39 @@ const Row = ({ title, fetchUrl, isLargeRow }) => {
     playerVars: { autoplay: 1 },
   };
 
+  const validMovies = movies?.filter((movie) =>
+    isLargeRow ? movie?.poster_path : (movie?.backdrop_path || movie?.poster_path)
+  );
+
   return (
-    <>
-      <div className='row'>
-        <h1>{title}</h1>
-        <div className="row-posters">
-          {movies?.map((movie, index) => (
+    <div className="row">
+      <h2 className="row-title">{title}</h2>
+      <div className="row-posters">
+        {validMovies?.map((movie, index) => {
+          const imagePath = isLargeRow
+            ? movie.poster_path
+            : (movie.backdrop_path || movie.poster_path);
+          return (
             <img
               onClick={() => handleClick(movie)}
-              key={movie.id || index} 
-              src={`${base_url}${
-                isLargeRow ? movie.poster_path : movie.backdrop_path
-              }`}
-              alt={movie.name}
-              className={`row-poster ${isLargeRow && "row-posterLarge"}`}
+              key={movie.id || index}
+              src={`${base_url}${imagePath}`}
+              alt={movie.title || movie.name || "Movie"}
+              className={`row-poster ${isLargeRow ? "row-posterLarge" : ""}`}
+              loading="lazy"
+              onError={(e) => {
+                e.target.style.display = "none";
+              }}
             />
-          ))}
-        </div>
-        <div style={{ padding: "40px" }}>
-          {trailerUrl && <YouTube videoId={trailerUrl} opts={opts} />}
-        </div>
+          );
+        })}
       </div>
-    </>
+      {trailerUrl && (
+        <div className="row-trailerWrapper">
+          <YouTube videoId={trailerUrl} opts={opts} />
+        </div>
+      )}
+    </div>
   );
 };
 
