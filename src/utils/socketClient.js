@@ -1,7 +1,16 @@
 // Socket Client & Resilient Peer Sync Engine for CineSync
 import { io } from "socket.io-client";
 
-const SERVER_URL = import.meta.env.VITE_SERVER_URL || "http://localhost:5000";
+const getSocketUrl = () => {
+  if (import.meta.env.VITE_SERVER_URL) {
+    return import.meta.env.VITE_SERVER_URL;
+  }
+  if (typeof window !== "undefined") {
+    const hostname = window.location.hostname || "localhost";
+    return `http://${hostname}:5000`;
+  }
+  return "http://localhost:5000";
+};
 
 let socketInstance = null;
 let broadcastChannel = null;
@@ -17,10 +26,12 @@ if (typeof window !== "undefined" && "BroadcastChannel" in window) {
 
 export function getSocket() {
   if (!socketInstance) {
-    socketInstance = io(SERVER_URL, {
+    socketInstance = io(getSocketUrl(), {
       autoConnect: false,
-      reconnectionAttempts: 5,
-      timeout: 5000,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 1000,
+      timeout: 8000,
+      transports: ["websocket", "polling"],
     });
   }
   return socketInstance;

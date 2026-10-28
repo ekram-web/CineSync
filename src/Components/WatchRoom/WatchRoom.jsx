@@ -7,17 +7,21 @@ import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import PauseIcon from "@mui/icons-material/Pause";
 import SyncIcon from "@mui/icons-material/Sync";
+import FastRewindIcon from "@mui/icons-material/FastRewind";
+import FastForwardIcon from "@mui/icons-material/FastForward";
+import MovieIcon from "@mui/icons-material/Movie";
+import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import { getSocket, getBroadcastChannel } from "../../utils/socketClient";
 import ChatSidebar from "./ChatSidebar";
 import FloatingReactions from "./FloatingReactions";
 import "./watchRoom.css";
 
-// Reliable backup trailer IDs if TMDB trailer lookup is unavailable
-const BACKUP_TRAILERS = [
-  "dQw4w9WgXcQ",
-  "d9MyW72ELq0", // Avatar
-  "zSWdZVtXT7E", // Interstellar
-  "8Qn_spdM5Zg", // Inception
+// Verified, universally embeddable fallback video streams
+export const VERIFIED_TRAILERS = [
+  { id: "L61p2uyiMSo", label: "Avatar 2 (Universal HD)" },
+  { id: "YoHD9XEInc0", label: "Inception" },
+  { id: "zSWdZVtXT7E", label: "Interstellar" },
+  { id: "YE7VzlLtp-4", label: "Big Buck Bunny (100% Unrestricted)" },
 ];
 
 const WatchRoom = ({
@@ -25,6 +29,7 @@ const WatchRoom = ({
   initialMovie,
   initialTrailerUrl,
   initialIsHost = false,
+  initialHostToken = "",
   onLeaveRoom,
 }) => {
   const [userName, setUserName] = useState(() => {
@@ -52,7 +57,11 @@ const WatchRoom = ({
   });
 
   const [isHost, setIsHost] = useState(Boolean(initialIsHost));
-  const [hostName, setHostName] = useState(() => (initialIsHost ? userName || "You" : ""));
+  const [hostName, setHostName] = useState(() => (initialIsHost ? userName || "Host" : "Host"));
+  const [hostToken] = useState(() => {
+    return initialHostToken || localStorage.getItem(`cinesync_host_token_${roomId}`) || "";
+  });
+
   const [users, setUsers] = useState(() => {
     if (userName) {
       return [{ id: initialIsHost ? "host" : `user_${Date.now()}`, name: userName, isHost: Boolean(initialIsHost) }];
@@ -65,9 +74,33 @@ const WatchRoom = ({
   const [incomingReaction, setIncomingReaction] = useState(null);
   const [copied, setCopied] = useState(false);
   const [syncNotice, setSyncNotice] = useState("");
+  const [videoError, setVideoError] = useState("");
+  const [isChangeVideoOpen, setIsChangeVideoOpen] = useState(false);
+  const [customVideoInput, setCustomVideoInput] = useState("");
 
   const playerRef = useRef(null);
   const isInternalAction = useRef(false);
+  const isHostRef = useRef(isHost);
+  const trailerIdRef = useRef(trailerId);
+  const movieRef = useRef(movie);
+  const usersRef = useRef(users);
+
+  // Keep refs synchronized without triggering effect reruns
+  useEffect(() => {
+    isHostRef.current = isHost;
+  }, [isHost]);
+
+  useEffect(() => {
+    trailerIdRef.current = trailerId;
+  }, [trailerId]);
+
+  useEffect(() => {
+    movieRef.current = movie;
+  }, [movie]);
+
+  useEffect(() => {
+    usersRef.current = users;
+  }, [users]);
 
   // Auto-fetch trailer if not provided
   useEffect(() => {
@@ -78,52 +111,57 @@ const WatchRoom = ({
           if (url) {
             const urlParams = new URLSearchParams(new URL(url).search);
             const vId = urlParams.get("v");
-            if (vId) setTrailerId(vId);
-          } else {
-            // Pick a reliable cinematic clip as fallback
-            setTrailerId(BACKUP_TRAILERS[2]);
+            if (vId) {
+              setTrailerId(vId);
+              setVideoError("");
+              return;
+            }
           }
+          setTrailerId(VERIFIED_TRAILERS[0].id);
         })
         .catch(() => {
-          setTrailerId(BACKUP_TRAILERS[2]);
+          setTrailerId(VERIFIED_TRAILERS[0].id);
         });
     } else if (!trailerId && !movie) {
-      // If joined with just a room ID and no movie yet, use a fallback
-      setTrailerId(BACKUP_TRAILERS[2]);
+      setTrailerId(VERIFIED_TRAILERS[0].id);
     }
   }, [movie, trailerId]);
 
   // Main Real-Time Engine (Socket.IO + BroadcastChannel Fallback)
+  // CRITICAL: Depend ONLY on [userName, roomId] to prevent infinite reconnect cycles!
   useEffect(() => {
     if (!userName || !roomId) return;
 
     const socket = getSocket();
     const bc = getBroadcastChannel();
 
-    // 1. Try Socket.IO connection
+    // 1. Connect Socket.IO
     try {
       socket.connect();
       socket.emit("join_room", {
         roomId,
         userName,
-        movie,
-        trailerUrl: trailerId,
+        movie: movieRef.current,
+        trailerUrl: trailerIdRef.current,
+        hostToken,
       });
-    } catch (e) {}
+    } catch (e) {
+      console.warn("Socket connect error:", e);
+    }
 
-    // 2. Announce presence on BroadcastChannel for seamless local multi-tab sync
+    // 2. Announce presence on BroadcastChannel
     if (bc) {
       bc.postMessage({
         type: "user_joined",
         roomId,
         user: userName,
-        isHost,
-        movie,
-        trailerId,
+        isHost: isHostRef.current,
+        movie: movieRef.current,
+        trailerId: trailerIdRef.current,
       });
 
-      // If Guest, request the current room state from the Host tab
-      if (!isHost) {
+      // If Guest, request current room state from Host
+      if (!isHostRef.current) {
         bc.postMessage({
           type: "request_room_state",
           roomId,
@@ -134,10 +172,17 @@ const WatchRoom = ({
 
     // --- Socket Event Handlers ---
     const handleRoomState = (state) => {
-      setIsHost(state.isHost);
-      setHostName(state.hostName || "");
+      // Determine host status from server verification or existing local hostToken
+      const verifiedIsHost = state.isHost || isHostRef.current;
+      setIsHost(verifiedIsHost);
+      isHostRef.current = verifiedIsHost;
+
+      if (state.hostName) setHostName(state.hostName);
       if (state.movie) setMovie(state.movie);
-      if (state.trailerUrl && !trailerId) setTrailerId(state.trailerUrl);
+      if (state.trailerUrl) {
+        setTrailerId(state.trailerUrl);
+        setVideoError("");
+      }
       if (state.users) setUsers(state.users);
 
       if (state.currentTime > 0 && playerRef.current) {
@@ -162,9 +207,9 @@ const WatchRoom = ({
       setMessages((prev) => [
         ...prev,
         {
-          id: `sys_${Date.now()}`,
+          id: `sys_${Date.now()}_${Math.random()}`,
           isSystem: true,
-          text: data.message || `${data.user} joined the room!`,
+          text: data.message || `${data.user} joined the watch room!`,
         },
       ]);
     };
@@ -174,7 +219,7 @@ const WatchRoom = ({
       setMessages((prev) => [
         ...prev,
         {
-          id: `sys_${Date.now()}`,
+          id: `sys_${Date.now()}_${Math.random()}`,
           isSystem: true,
           text: data.message || `${data.user} left the room.`,
         },
@@ -185,7 +230,7 @@ const WatchRoom = ({
       if (!playerRef.current) return;
 
       isInternalAction.current = true;
-      const latencyComp = hostTime ? (Date.now() - hostTime) / 1000 : 0;
+      const latencyComp = hostTime ? Math.max(0, (Date.now() - hostTime) / 1000) : 0;
       const targetTime = Math.max(0, timestamp + latencyComp);
 
       setSyncNotice(`Host ${action}ed at ${targetTime.toFixed(1)}s`);
@@ -200,11 +245,33 @@ const WatchRoom = ({
 
       setTimeout(() => {
         isInternalAction.current = false;
-      }, 400);
+      }, 500);
+    };
+
+    const handleVideoChanged = (data) => {
+      if (data.trailerId) {
+        setTrailerId(data.trailerId);
+        setVideoError("");
+        setSyncNotice(`🎬 Video stream updated`);
+        setTimeout(() => setSyncNotice(""), 2500);
+      }
+      if (data.movieTitle) {
+        setMovie((prev) => (prev ? { ...prev, title: data.movieTitle } : { title: data.movieTitle }));
+      }
+      if (data.message) {
+        setMessages((prev) => [
+          ...prev,
+          { id: `sys_${Date.now()}_${Math.random()}`, isSystem: true, text: data.message },
+        ]);
+      }
     };
 
     const handleReceiveMessage = (msg) => {
-      setMessages((prev) => [...prev, msg]);
+      setMessages((prev) => {
+        // Prevent duplicate messages by id
+        if (prev.some((m) => m.id === msg.id)) return prev;
+        return [...prev, msg];
+      });
     };
 
     const handleUserTyping = ({ user, isTyping }) => {
@@ -223,6 +290,7 @@ const WatchRoom = ({
 
     const handlePromotedToHost = () => {
       setIsHost(true);
+      isHostRef.current = true;
       setSyncNotice("👑 You are now the Room Host!");
       setTimeout(() => setSyncNotice(""), 3000);
     };
@@ -231,18 +299,18 @@ const WatchRoom = ({
     socket.on("user_joined", handleUserJoined);
     socket.on("user_left", handleUserLeft);
     socket.on("sync_playback", handleSyncPlayback);
+    socket.on("video_changed", handleVideoChanged);
     socket.on("receive_message", handleReceiveMessage);
     socket.on("user_typing", handleUserTyping);
     socket.on("receive_reaction", handleReceiveReaction);
     socket.on("promoted_to_host", handlePromotedToHost);
 
-    // --- BroadcastChannel Message Bus (Syncs across tabs when server is offline) ---
+    // --- BroadcastChannel Fallback ---
     const handleBroadcastMessage = (event) => {
       const data = event.data;
       if (!data || data.roomId !== roomId) return;
 
-      if (data.type === "request_room_state" && isHost) {
-        // Host replies with current state
+      if (data.type === "request_room_state" && isHostRef.current) {
         let currentTime = 0;
         let isPlaying = false;
         try {
@@ -252,17 +320,17 @@ const WatchRoom = ({
           }
         } catch (e) {}
 
-        const updatedUsers = users.some((u) => u.name === data.guestName)
-          ? users
-          : [...users, { id: `guest_${Date.now()}`, name: data.guestName, isHost: false }];
+        const updatedUsers = usersRef.current.some((u) => u.name === data.guestName)
+          ? usersRef.current
+          : [...usersRef.current, { id: `guest_${Date.now()}`, name: data.guestName, isHost: false }];
 
         setUsers(updatedUsers);
 
         bc.postMessage({
           type: "room_state",
           roomId,
-          movie,
-          trailerId,
+          movie: movieRef.current,
+          trailerId: trailerIdRef.current,
           hostName: userName,
           users: updatedUsers,
           isPlaying,
@@ -271,11 +339,14 @@ const WatchRoom = ({
 
         setMessages((prev) => [
           ...prev,
-          { id: `sys_${Date.now()}`, isSystem: true, text: `${data.guestName} joined the watch party!` },
+          { id: `sys_${Date.now()}_${Math.random()}`, isSystem: true, text: `${data.guestName} joined the watch room!` },
         ]);
       } else if (data.type === "room_state") {
         if (data.movie) setMovie(data.movie);
-        if (data.trailerId) setTrailerId(data.trailerId);
+        if (data.trailerId) {
+          setTrailerId(data.trailerId);
+          setVideoError("");
+        }
         if (data.hostName) setHostName(data.hostName);
         if (data.users) setUsers(data.users);
 
@@ -287,6 +358,8 @@ const WatchRoom = ({
         handleUserJoined(data);
       } else if (data.type === "sync_playback") {
         handleSyncPlayback(data);
+      } else if (data.type === "video_changed") {
+        handleVideoChanged(data);
       } else if (data.type === "chat_message") {
         handleReceiveMessage(data.payload);
       } else if (data.type === "reaction") {
@@ -305,6 +378,7 @@ const WatchRoom = ({
       socket.off("user_joined", handleUserJoined);
       socket.off("user_left", handleUserLeft);
       socket.off("sync_playback", handleSyncPlayback);
+      socket.off("video_changed", handleVideoChanged);
       socket.off("receive_message", handleReceiveMessage);
       socket.off("user_typing", handleUserTyping);
       socket.off("receive_reaction", handleReceiveReaction);
@@ -316,14 +390,14 @@ const WatchRoom = ({
 
       socket.disconnect();
     };
-  }, [userName, roomId, trailerId, isHost, movie, users]);
+  }, [userName, roomId]);
 
   // Host Action: Emit playback events to all peers
-  const emitPlayback = (action) => {
+  const emitPlayback = (action, forcedTime = null) => {
     if (!playerRef.current || isInternalAction.current) return;
 
     try {
-      const currentTime = playerRef.current.getCurrentTime() || 0;
+      const currentTime = forcedTime !== null ? forcedTime : playerRef.current.getCurrentTime() || 0;
       const payload = {
         roomId,
         action,
@@ -341,12 +415,18 @@ const WatchRoom = ({
         bc.postMessage({ type: "sync_playback", ...payload });
       }
     } catch (e) {
-      console.warn("Player time error:", e);
+      console.warn("Player emit error:", e);
     }
   };
 
   const handlePlayerReady = (event) => {
     playerRef.current = event.target;
+    setVideoError("");
+  };
+
+  const handlePlayerError = (event) => {
+    console.warn("YouTube player error:", event?.data);
+    setVideoError("YouTube playback is restricted or blocked on this network.");
   };
 
   const handlePlayerStateChange = (event) => {
@@ -354,13 +434,16 @@ const WatchRoom = ({
 
     if (isHost) {
       if (event.data === 1) {
+        // Playing
         emitPlayback("play");
       } else if (event.data === 2) {
+        // Paused
         emitPlayback("pause");
       }
     }
   };
 
+  // Host Controls
   const handleHostForcePlay = () => {
     if (playerRef.current) {
       playerRef.current.playVideo();
@@ -375,19 +458,97 @@ const WatchRoom = ({
     }
   };
 
-  const handleHostSyncAll = () => {
+  const handleHostSkip = (seconds) => {
     if (playerRef.current) {
-      const state = playerRef.current.getPlayerState();
-      emitPlayback(state === 1 ? "play" : "pause");
-      setSyncNotice("Sync signal broadcasted to all viewers");
-      setTimeout(() => setSyncNotice(""), 2000);
+      try {
+        const cur = playerRef.current.getCurrentTime() || 0;
+        const newTime = Math.max(0, cur + seconds);
+        playerRef.current.seekTo(newTime, true);
+        const isPlaying = playerRef.current.getPlayerState() === 1;
+        emitPlayback(isPlaying ? "play" : "pause", newTime);
+        setSyncNotice(`${seconds > 0 ? "+10s" : "-10s"} seek broadcasted`);
+        setTimeout(() => setSyncNotice(""), 2000);
+      } catch (e) {}
     }
   };
 
+  const handleHostSyncAll = () => {
+    if (playerRef.current) {
+      try {
+        const state = playerRef.current.getPlayerState();
+        const cur = playerRef.current.getCurrentTime() || 0;
+        emitPlayback(state === 1 ? "play" : "pause", cur);
+        setSyncNotice("Sync signal broadcasted to all viewers");
+        setTimeout(() => setSyncNotice(""), 2200);
+      } catch (e) {}
+    }
+  };
+
+  // Guest Control: Catch Up with Host
+  const handleGuestCatchUp = () => {
+    const socket = getSocket();
+    if (socket.connected) {
+      socket.emit("join_room", { roomId, userName, hostToken: "" });
+      setSyncNotice("Requesting host stream position...");
+      setTimeout(() => setSyncNotice(""), 2200);
+    }
+    const bc = getBroadcastChannel();
+    if (bc) {
+      bc.postMessage({ type: "request_room_state", roomId, guestName: userName });
+    }
+  };
+
+  // Change Video / Trailer (Host action)
+  const handleChangeVideo = (newTrailerId, newTitle = "") => {
+    if (!newTrailerId) return;
+
+    // Extract ID if full URL pasted
+    let cleanId = newTrailerId.trim();
+    if (cleanId.includes("youtube.com/watch")) {
+      const match = cleanId.match(/v=([a-zA-Z0-9_-]+)/);
+      if (match) cleanId = match[1];
+    } else if (cleanId.includes("youtu.be/")) {
+      const match = cleanId.match(/youtu\.be\/([a-zA-Z0-9_-]+)/);
+      if (match) cleanId = match[1];
+    }
+
+    setTrailerId(cleanId);
+    setVideoError("");
+    setIsChangeVideoOpen(false);
+    setCustomVideoInput("");
+
+    const displayTitle = newTitle || (movie?.title || "Stream Video");
+    const payload = {
+      roomId,
+      trailerId: cleanId,
+      movieTitle: displayTitle,
+    };
+
+    const socket = getSocket();
+    if (socket.connected) {
+      socket.emit("change_video", payload);
+    }
+
+    const bc = getBroadcastChannel();
+    if (bc) {
+      bc.postMessage({
+        type: "video_changed",
+        trailerId: cleanId,
+        movieTitle: displayTitle,
+        message: `Host switched video stream to "${displayTitle}"`,
+      });
+    }
+
+    setSyncNotice("Video stream updated for all viewers");
+    setTimeout(() => setSyncNotice(""), 2500);
+  };
+
+  // Chat & Messaging
   const handleSendMessage = (messageText) => {
     const payload = {
-      id: `${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      id: `${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       user: userName,
+      isHost,
       message: messageText,
       time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     };
@@ -416,6 +577,7 @@ const WatchRoom = ({
     }
   };
 
+  // Floating Reactions
   const handleSendReaction = (emoji) => {
     const payload = {
       id: `${Date.now()}_${Math.random()}`,
@@ -436,6 +598,7 @@ const WatchRoom = ({
     }
   };
 
+  // Copy Invite Link (both Host & Guest can invite friends!)
   const handleCopyLink = () => {
     const inviteUrl = `${window.location.origin}${window.location.pathname}?room=${roomId}`;
     navigator.clipboard.writeText(inviteUrl);
@@ -467,13 +630,15 @@ const WatchRoom = ({
       autoplay: 1,
       modestbranding: 1,
       rel: 0,
-      controls: isHost ? 1 : 0,
+      enablejsapi: 1,
+      origin: typeof window !== "undefined" ? window.location.origin : undefined,
+      controls: isHost ? 1 : 0, // ONLY HOST has active player controls
     },
   };
 
   return (
     <div className="watchRoom__container">
-      {/* Display Name Modal if joining without name */}
+      {/* Display Name Modal if joining without saved name */}
       {isNameModalOpen && (
         <div className="watchRoom__nameModalOverlay">
           <div className="watchRoom__nameModal">
@@ -500,7 +665,55 @@ const WatchRoom = ({
         </div>
       )}
 
-      {/* Top Bar */}
+      {/* Change Video Modal (Host Only) */}
+      {isChangeVideoOpen && (
+        <div className="watchRoom__nameModalOverlay" onClick={() => setIsChangeVideoOpen(false)}>
+          <div className="watchRoom__changeVideoModal" onClick={(e) => e.stopPropagation()}>
+            <h3>🎬 Change Video Stream</h3>
+            <p>Pick a verified trailer or paste any YouTube URL to switch stream for all viewers:</p>
+
+            <div className="watchRoom__verifiedList">
+              {VERIFIED_TRAILERS.map((v) => (
+                <button
+                  key={v.id}
+                  className={`watchRoom__trailerOption ${trailerId === v.id ? "active" : ""}`}
+                  onClick={() => handleChangeVideo(v.id, v.label)}
+                >
+                  <MovieIcon style={{ fontSize: "1rem" }} />
+                  <span>{v.label}</span>
+                </button>
+              ))}
+            </div>
+
+            <div className="watchRoom__customVideoBox">
+              <input
+                type="text"
+                className="watchRoom__nameInput"
+                placeholder="Paste YouTube Video URL or Video ID..."
+                value={customVideoInput}
+                onChange={(e) => setCustomVideoInput(e.target.value)}
+              />
+              <div className="watchRoom__customBtnRow">
+                <button
+                  className="watchRoom__nameSubmitBtn"
+                  disabled={!customVideoInput.trim()}
+                  onClick={() => handleChangeVideo(customVideoInput, "Custom Video")}
+                >
+                  Switch Video for Everyone
+                </button>
+                <button
+                  className="watchRoom__cancelBtn"
+                  onClick={() => setIsChangeVideoOpen(false)}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Top Header Bar */}
       <header className="watchRoom__header">
         <div className="watchRoom__headerLeft">
           <button className="watchRoom__backBtn" onClick={onLeaveRoom}>
@@ -515,8 +728,8 @@ const WatchRoom = ({
               {isHost ? (
                 <span className="watchRoom__hostBadge hostMe">👑 You are Host</span>
               ) : (
-                <span className="watchRoom__hostBadge">
-                  Host: {hostName || "Host"}
+                <span className="watchRoom__hostBadge guestBadge">
+                  🔒 Guest (Host: {hostName || "Host"})
                 </span>
               )}
             </div>
@@ -524,11 +737,15 @@ const WatchRoom = ({
         </div>
 
         <div className="watchRoom__headerRight">
-          <button className="watchRoom__copyBtn" onClick={handleCopyLink}>
+          <button
+            className="watchRoom__copyBtn"
+            onClick={handleCopyLink}
+            title="Invite friends to this watch room"
+          >
             {copied ? (
               <>
                 <CheckIcon style={{ fontSize: "1.1rem", color: "#46d369" }} />
-                <span>Link Copied!</span>
+                <span>Invite Link Copied!</span>
               </>
             ) : (
               <>
@@ -550,6 +767,7 @@ const WatchRoom = ({
                 opts={opts}
                 className="watchRoom__youtube"
                 onReady={handlePlayerReady}
+                onError={handlePlayerError}
                 onStateChange={handlePlayerStateChange}
               />
             ) : (
@@ -558,11 +776,44 @@ const WatchRoom = ({
               </div>
             )}
 
+            {/* Video Error / Restriction Overlay */}
+            {videoError && (
+              <div className="watchRoom__videoErrorOverlay">
+                <WarningAmberIcon style={{ fontSize: "2.4rem", color: "#ffc107" }} />
+                <h4>YouTube Video Restricted</h4>
+                <p>
+                  This video is restricted or cannot be embedded on this network / account.
+                </p>
+                {isHost ? (
+                  <div className="watchRoom__errorActions">
+                    <p className="watchRoom__errorHint">As Host, select a tested stream below:</p>
+                    <div className="watchRoom__quickOptions">
+                      {VERIFIED_TRAILERS.map((v) => (
+                        <button
+                          key={v.id}
+                          className="watchRoom__quickOptionBtn"
+                          onClick={() => handleChangeVideo(v.id, v.label)}
+                        >
+                          {v.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="watchRoom__errorGuestNote">
+                    Please ask the Host ({hostName || "Host"}) to select a compatible trailer.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Floating Reactions Canvas */}
             <FloatingReactions
               onSendReaction={handleSendReaction}
               incomingReaction={incomingReaction}
             />
 
+            {/* Sync Notification Toast */}
             {syncNotice && (
               <div className="watchRoom__syncToast">
                 <SyncIcon className="watchRoom__spin" />
@@ -571,47 +822,82 @@ const WatchRoom = ({
             )}
           </div>
 
+          {/* Controls Bar */}
           <div className="watchRoom__controlsBar">
             <div className="watchRoom__controlsInfo">
               {isHost ? (
                 <span className="watchRoom__controlRole isHost">
-                  👑 <strong>Host Mode</strong> — Play, pause, or seek controls synchronize all viewers.
+                  👑 <strong>Host Mode</strong> — You control playback and sync for all viewers.
                 </span>
               ) : (
                 <span className="watchRoom__controlRole">
-                  🔒 <strong>Guest Mode</strong> — Video playback is synchronized with the host.
+                  🔒 <strong>Guest Mode</strong> — Video is synchronized with Host ({hostName || "Host"}). Sit back and enjoy!
                 </span>
               )}
             </div>
 
-            {isHost && (
+            {/* Host Controls */}
+            {isHost ? (
               <div className="watchRoom__hostButtons">
                 <button
                   className="watchRoom__hostBtn"
                   onClick={handleHostForcePlay}
                   title="Play for everyone"
                 >
-                  <PlayArrowIcon /> Play
+                  <PlayArrowIcon style={{ fontSize: "1.1rem" }} /> Play
                 </button>
                 <button
                   className="watchRoom__hostBtn"
                   onClick={handleHostForcePause}
                   title="Pause for everyone"
                 >
-                  <PauseIcon /> Pause
+                  <PauseIcon style={{ fontSize: "1.1rem" }} /> Pause
+                </button>
+                <button
+                  className="watchRoom__hostBtn"
+                  onClick={() => handleHostSkip(-10)}
+                  title="Rewind 10 seconds"
+                >
+                  <FastRewindIcon style={{ fontSize: "1.1rem" }} /> -10s
+                </button>
+                <button
+                  className="watchRoom__hostBtn"
+                  onClick={() => handleHostSkip(10)}
+                  title="Forward 10 seconds"
+                >
+                  <FastForwardIcon style={{ fontSize: "1.1rem" }} /> +10s
                 </button>
                 <button
                   className="watchRoom__hostBtn sync"
                   onClick={handleHostSyncAll}
-                  title="Broadcast current timestamp"
+                  title="Broadcast current timestamp to all guests"
                 >
-                  <SyncIcon /> Resync All
+                  <SyncIcon style={{ fontSize: "1.1rem" }} /> Resync All
+                </button>
+                <button
+                  className="watchRoom__hostBtn changeVideo"
+                  onClick={() => setIsChangeVideoOpen(true)}
+                  title="Change video or trailer"
+                >
+                  <MovieIcon style={{ fontSize: "1.1rem" }} /> Change Video
+                </button>
+              </div>
+            ) : (
+              /* Guest Controls */
+              <div className="watchRoom__guestButtons">
+                <button
+                  className="watchRoom__guestSyncBtn"
+                  onClick={handleGuestCatchUp}
+                  title="Resync video to host's position"
+                >
+                  <SyncIcon style={{ fontSize: "1.05rem" }} /> Catch Up with Host
                 </button>
               </div>
             )}
           </div>
         </div>
 
+        {/* Live Chat Sidebar */}
         <div className="watchRoom__chatSection">
           <ChatSidebar
             users={users}

@@ -25,15 +25,21 @@ const Home = () => {
         if (raw) saved = JSON.parse(raw);
       } catch (e) {}
 
-      // Creator session check
-      const currentUserName = localStorage.getItem("cinesync_username") || "";
-      const isCreator = saved?.hostName && currentUserName && saved.hostName === currentUserName;
+      // Reliable host check: tab-session flag or persistent host token
+      const hostToken = localStorage.getItem(`cinesync_host_token_${roomParam}`);
+      const isSessionHost = sessionStorage.getItem(`cinesync_is_host_${roomParam}`) === "true";
+      const isCreator = Boolean(
+        isSessionHost ||
+        (hostToken && saved?.hostToken && hostToken === saved.hostToken) ||
+        (hostToken && !saved)
+      );
 
       setActiveRoom({
         roomId: roomParam,
         movie: saved?.movie || null,
         trailerUrl: saved?.trailerUrl || "",
-        isHost: Boolean(isCreator),
+        isHost: isCreator,
+        hostToken: hostToken || "",
       });
     }
 
@@ -47,11 +53,16 @@ const Home = () => {
           if (raw) saved = JSON.parse(raw);
         } catch (e) {}
 
+        const hostToken = localStorage.getItem(`cinesync_host_token_${r}`);
+        const isSessionHost = sessionStorage.getItem(`cinesync_is_host_${r}`) === "true";
+        const isCreator = Boolean(isSessionHost || (hostToken && saved?.hostToken && hostToken === saved.hostToken));
+
         setActiveRoom({
           roomId: r,
           movie: saved?.movie || null,
           trailerUrl: saved?.trailerUrl || "",
-          isHost: false,
+          isHost: isCreator,
+          hostToken: hostToken || "",
         });
       } else {
         setActiveRoom(null);
@@ -72,11 +83,20 @@ const Home = () => {
 
   const handleCreateRoom = (movie, roomId, trailerUrl) => {
     const currentUserName = localStorage.getItem("cinesync_username") || "Host";
+    const hostToken = `host_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+
+    // Store host credentials locally
+    try {
+      localStorage.setItem(`cinesync_host_token_${roomId}`, hostToken);
+      sessionStorage.setItem(`cinesync_is_host_${roomId}`, "true");
+    } catch (e) {}
+
     const roomPayload = {
       roomId,
       movie,
       trailerUrl,
       hostName: currentUserName,
+      hostToken,
       createdAt: Date.now(),
     };
 
@@ -90,6 +110,7 @@ const Home = () => {
       movie,
       trailerUrl,
       isHost: true,
+      hostToken,
     });
     window.history.pushState({}, "", `?room=${roomId}`);
   };
@@ -107,6 +128,7 @@ const Home = () => {
         initialMovie={activeRoom.movie}
         initialTrailerUrl={activeRoom.trailerUrl}
         initialIsHost={activeRoom.isHost}
+        initialHostToken={activeRoom.hostToken}
         onLeaveRoom={handleLeaveRoom}
       />
     );

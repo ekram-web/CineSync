@@ -39,7 +39,7 @@ io.on("connection", (socket) => {
   console.log(`[Socket Connected] ID: ${socket.id}`);
 
   // User Joins a Watch Room
-  socket.on("join_room", ({ roomId, userName, movie, trailerUrl }) => {
+  socket.on("join_room", ({ roomId, userName, movie, trailerUrl, hostToken }) => {
     socket.join(roomId);
     socket.data.roomId = roomId;
     socket.data.userName = userName || "Guest";
@@ -56,17 +56,33 @@ io.on("connection", (socket) => {
         movieData: movie || null,
         hostId: socket.id,
         hostName: socket.data.userName,
+        hostToken: hostToken || null,
         isPlaying: false,
         currentTime: 0,
         lastSyncTime: Date.now(),
         users: [],
       };
       rooms.set(roomId, room);
+    } else {
+      // Existing room:
+      // If client provides matching hostToken or claims host when hostId is not connected
+      if (hostToken && room.hostToken === hostToken) {
+        room.hostId = socket.id;
+        room.hostName = socket.data.userName;
+      }
+      // Populate movie data from creator if guest arrived before movie details resolved
+      if (!room.movieData && movie) {
+        room.movieData = movie;
+        room.movieTitle = movie?.title || movie?.name || room.movieTitle;
+      }
+      if (!room.trailerUrl && trailerUrl) {
+        room.trailerUrl = trailerUrl;
+      }
     }
 
     // Check if user already exists
     const existingIndex = room.users.findIndex((u) => u.id === socket.id);
-    const isHost = socket.id === room.hostId;
+    const isHost = socket.id === room.hostId || (hostToken && room.hostToken === hostToken);
 
     if (existingIndex === -1) {
       room.users.push({
@@ -74,6 +90,9 @@ io.on("connection", (socket) => {
         name: socket.data.userName,
         isHost,
       });
+    } else {
+      room.users[existingIndex].name = socket.data.userName;
+      room.users[existingIndex].isHost = isHost;
     }
 
     // Calculate current timestamp compensation if already playing
@@ -96,14 +115,34 @@ io.on("connection", (socket) => {
       users: room.users,
     });
 
-    // Broadcast user joined to everyone in the room
+    // Broadcast user list to everyone in the room
     io.to(roomId).emit("user_joined", {
       user: socket.data.userName,
       users: room.users,
+      isHost,
       message: `${socket.data.userName} joined the watch party!`,
     });
 
-    console.log(`[User Joined] ${socket.data.userName} joined room: ${roomId}`);
+    console.log(`[User Joined] ${socket.data.userName} joined room: ${roomId} (Host: ${isHost})`);
+  });
+
+  // Change Video / Trailer (Host action)
+  socket.on("change_video", ({ roomId, trailerId, movieTitle }) => {
+    const room = rooms.get(roomId);
+    if (!room) return;
+
+    room.trailerUrl = trailerId;
+    if (movieTitle) room.movieTitle = movieTitle;
+    room.currentTime = 0;
+    room.isPlaying = true;
+    room.lastSyncTime = Date.now();
+
+    io.to(roomId).emit("video_changed", {
+      trailerId,
+      movieTitle: room.movieTitle,
+      message: `Host changed the video to "${room.movieTitle || 'New Stream'}"`,
+    });
+    console.log(`[Video Changed] Room: ${roomId} -> Video: ${trailerId}`);
   });
 
   // Playback Sync: Play, Pause, Seek
