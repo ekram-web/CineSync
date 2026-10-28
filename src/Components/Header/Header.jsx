@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import "./Header.css";
-import netflix from "../../assets/images/netflix.png";
+import cinesyncLogo from "../../assets/images/cinesync-logo.svg";
 import SearchIcon from "@mui/icons-material/Search";
 import CloseIcon from "@mui/icons-material/Close";
 import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
@@ -112,25 +112,7 @@ const Header = ({
           title="CineSync Home"
         >
           <div className="header-logoCineSync">
-            <svg className="header-logoSvg" viewBox="0 0 100 100" width="38" height="38">
-              <defs>
-                <linearGradient id="logoRedGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#FF1A2A" />
-                  <stop offset="100%" stopColor="#B20710" />
-                </linearGradient>
-                <linearGradient id="logoPlayGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#FF4D5A" />
-                  <stop offset="100%" stopColor="#E50914" />
-                </linearGradient>
-              </defs>
-              <rect width="100" height="100" rx="22" fill="#141414" />
-              <path
-                d="M 68 28 C 60 20, 36 20, 28 32 C 18 46, 18 64, 28 78 C 38 90, 62 90, 72 82 C 74 80, 75 78, 72 75 C 69 72, 67 74, 64 76 C 56 82, 38 82, 32 72 C 24 60, 24 48, 32 38 C 38 30, 54 28, 62 34 C 65 36, 68 35, 68 28 Z"
-                fill="url(#logoRedGrad)"
-              />
-              <polygon points="46,38 72,55 46,72" fill="url(#logoPlayGrad)" />
-              <circle cx="76" cy="30" r="5" fill="#46D369" />
-            </svg>
+            <img src={cinesyncLogo} alt="CineSync Logo" className="header-logoSvg" />
             <span className="header-logoText">
               CINE<span className="header-logoTextAccent">SYNC</span>
             </span>
