@@ -612,6 +612,39 @@
   font-weight: 500;
 }
 
+/* Guest Interaction Shield */
+.watchRoom__guestShield {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  cursor: default;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  padding: 16px;
+  pointer-events: auto;
+}
+
+.watchRoom__guestShieldBadge {
+  background: rgba(0, 0, 0, 0.7);
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  color: #38bdf8;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 0.76rem;
+  font-weight: 500;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: all 0.2s ease;
+  backdrop-filter: blur(6px);
+  pointer-events: none;
+}
+
+.watchRoom__guestShield:hover .watchRoom__guestShieldBadge {
+  opacity: 1;
+  transform: translateY(0);
+}
+
 /* Video Error & Restriction Overlay */
 .watchRoom__videoErrorOverlay {
   position: absolute;

@@ -84,6 +84,7 @@ const WatchRoom = ({
   const trailerIdRef = useRef(trailerId);
   const movieRef = useRef(movie);
   const usersRef = useRef(users);
+  const pendingSyncRef = useRef(null);
 
   // Keep refs synchronized without triggering effect reruns
   useEffect(() => {
@@ -101,6 +102,84 @@ const WatchRoom = ({
   useEffect(() => {
     usersRef.current = users;
   }, [users]);
+
+  // Host Heartbeat: Broadcasts playback position every 2.5 seconds so all guests stay locked in sync
+  useEffect(() => {
+    if (!isHost) return;
+
+    const interval = setInterval(() => {
+      if (playerRef.current && !isInternalAction.current) {
+        try {
+          const state = playerRef.current.getPlayerState();
+          // State 1 = playing, State 2 = paused
+          if (state === 1 || state === 2) {
+            const currentTime = playerRef.current.getCurrentTime() || 0;
+            const action = state === 1 ? "play" : "pause";
+
+            const payload = {
+              roomId,
+              action,
+              timestamp: currentTime,
+              hostTime: Date.now(),
+              isHeartbeat: true,
+            };
+
+            const socket = getSocket();
+            if (socket.connected) {
+              socket.emit("sync_playback", payload);
+            }
+
+            const bc = getBroadcastChannel();
+            if (bc) {
+              bc.postMessage({ type: "sync_playback", ...payload });
+            }
+          }
+        } catch (e) {}
+      }
+    }, 2500);
+
+    return () => clearInterval(interval);
+  }, [isHost, roomId]);
+
+  // Helper to apply synchronized playback state to the local player
+  const applySyncToPlayer = ({ action, timestamp, hostTime, isHeartbeat }) => {
+    if (!playerRef.current) return;
+    try {
+      isInternalAction.current = true;
+      const latencyComp = hostTime ? Math.max(0, (Date.now() - hostTime) / 1000) : 0;
+      const targetTime = Math.max(0, timestamp + latencyComp);
+
+      const curTime = playerRef.current.getCurrentTime() || 0;
+      const timeDiff = Math.abs(curTime - targetTime);
+
+      // Snap to time if drift is > 1.2s or if this is a manual seek/state change
+      if (!isHeartbeat || timeDiff > 1.2) {
+        playerRef.current.seekTo(targetTime, true);
+      }
+
+      const currentState = playerRef.current.getPlayerState();
+      if (action === "play") {
+        if (currentState !== 1) {
+          playerRef.current.playVideo();
+        }
+      } else if (action === "pause") {
+        if (currentState !== 2) {
+          playerRef.current.pauseVideo();
+        }
+      }
+
+      if (!isHeartbeat) {
+        setSyncNotice(`Host ${action}ed at ${targetTime.toFixed(1)}s`);
+        setTimeout(() => setSyncNotice(""), 2200);
+      }
+
+      setTimeout(() => {
+        isInternalAction.current = false;
+      }, 500);
+    } catch (e) {
+      isInternalAction.current = false;
+    }
+  };
 
   // Auto-fetch trailer if not provided
   useEffect(() => {
@@ -185,10 +264,15 @@ const WatchRoom = ({
       }
       if (state.users) setUsers(state.users);
 
-      if (state.currentTime > 0 && playerRef.current) {
-        playerRef.current.seekTo(state.currentTime, true);
-        if (state.isPlaying) {
-          playerRef.current.playVideo();
+      if (state.currentTime !== undefined) {
+        const syncPayload = {
+          action: state.isPlaying ? "play" : "pause",
+          timestamp: state.currentTime,
+          hostTime: Date.now(),
+        };
+        pendingSyncRef.current = syncPayload;
+        if (playerRef.current) {
+          applySyncToPlayer(syncPayload);
         }
       }
     };
@@ -226,26 +310,11 @@ const WatchRoom = ({
       ]);
     };
 
-    const handleSyncPlayback = ({ action, timestamp, hostTime }) => {
-      if (!playerRef.current) return;
-
-      isInternalAction.current = true;
-      const latencyComp = hostTime ? Math.max(0, (Date.now() - hostTime) / 1000) : 0;
-      const targetTime = Math.max(0, timestamp + latencyComp);
-
-      setSyncNotice(`Host ${action}ed at ${targetTime.toFixed(1)}s`);
-      setTimeout(() => setSyncNotice(""), 2200);
-
-      playerRef.current.seekTo(targetTime, true);
-      if (action === "play") {
-        playerRef.current.playVideo();
-      } else if (action === "pause") {
-        playerRef.current.pauseVideo();
+    const handleSyncPlayback = (payload) => {
+      pendingSyncRef.current = payload;
+      if (playerRef.current) {
+        applySyncToPlayer(payload);
       }
-
-      setTimeout(() => {
-        isInternalAction.current = false;
-      }, 500);
     };
 
     const handleVideoChanged = (data) => {
@@ -422,6 +491,16 @@ const WatchRoom = ({
   const handlePlayerReady = (event) => {
     playerRef.current = event.target;
     setVideoError("");
+
+    // If a sync state was queued before player mounted, apply it immediately
+    if (pendingSyncRef.current) {
+      applySyncToPlayer(pendingSyncRef.current);
+    } else if (!isHostRef.current) {
+      // Guest with no initial state: pause until host position is received
+      try {
+        event.target.pauseVideo();
+      } catch (e) {}
+    }
   };
 
   const handlePlayerError = (event) => {
@@ -432,14 +511,20 @@ const WatchRoom = ({
   const handlePlayerStateChange = (event) => {
     if (isInternalAction.current) return;
 
-    if (isHost) {
-      if (event.data === 1) {
-        // Playing
-        emitPlayback("play");
-      } else if (event.data === 2) {
-        // Paused
-        emitPlayback("pause");
-      }
+    if (isHostRef.current) {
+      try {
+        const curTime = playerRef.current ? playerRef.current.getCurrentTime() || 0 : 0;
+        if (event.data === 1) {
+          // Playing
+          emitPlayback("play", curTime);
+        } else if (event.data === 2) {
+          // Paused
+          emitPlayback("pause", curTime);
+        } else if (event.data === 3) {
+          // Buffering or seek scrub
+          emitPlayback("pause", curTime);
+        }
+      } catch (e) {}
     }
   };
 
@@ -773,6 +858,15 @@ const WatchRoom = ({
             ) : (
               <div className="watchRoom__noVideo">
                 <p>Loading video stream...</p>
+              </div>
+            )}
+
+            {/* Guest Interaction Shield: Keeps guests strictly locked in sync with Host */}
+            {!isHost && (
+              <div className="watchRoom__guestShield" title="Video playback is controlled by Host">
+                <div className="watchRoom__guestShieldBadge">
+                  <span>🔒 Synced to Host</span>
+                </div>
               </div>
             )}
 
