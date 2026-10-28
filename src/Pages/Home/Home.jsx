@@ -5,10 +5,12 @@ import Banner from "../../Components/Banner/Banner.jsx";
 import Rowlist from "../../Components/Rows/RowList/Rowlist.jsx";
 import MovieModal from "../../Components/MovieModal/MovieModal.jsx";
 import Watchlist from "../../Components/Watchlist/Watchlist.jsx";
+import AiDiscovery from "../../Components/AiDiscovery/AiDiscovery.jsx";
 
 const Home = () => {
-  const [currentView, setCurrentView] = useState("home"); // "home" | "watchlist" | "ai" | "room"
+  const [currentView, setCurrentView] = useState("home"); // "home" | "watchlist"
   const [selectedMovie, setSelectedMovie] = useState(null);
+  const [isAiModalOpen, setIsAiModalOpen] = useState(false);
 
   const handleSelectMovie = (movie) => {
     setSelectedMovie(movie);
@@ -19,7 +21,6 @@ const Home = () => {
   };
 
   const handleCreateRoom = (movie, roomId, trailerUrl) => {
-    // Closes modal and alerts or sets room state (ready for Feature 3: Watch Rooms)
     setSelectedMovie(null);
     alert(`🎬 Watch Room created: "${roomId}" for "${movie.title || movie.name}". Real-time room sync ready for next phase!`);
   };
@@ -30,7 +31,7 @@ const Home = () => {
         currentView={currentView}
         onNavigate={(view) => setCurrentView(view)}
         onSelectMovie={handleSelectMovie}
-        onOpenAiDiscovery={() => alert("🤖 AI Mood Discovery will be hooked up in the next step!")}
+        onOpenAiDiscovery={() => setIsAiModalOpen(true)}
       />
 
       {currentView === "home" && (
@@ -52,6 +53,13 @@ const Home = () => {
           movie={selectedMovie}
           onClose={handleCloseModal}
           onCreateRoom={handleCreateRoom}
+        />
+      )}
+
+      {isAiModalOpen && (
+        <AiDiscovery
+          onClose={() => setIsAiModalOpen(false)}
+          onSelectMovie={handleSelectMovie}
         />
       )}
 
