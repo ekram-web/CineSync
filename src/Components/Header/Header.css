@@ -265,11 +265,66 @@
 }
 
 @media (max-width: 768px) {
-  .header-searchInput {
-    width: 80px;
+  .header-outer-container {
+    height: 62px;
+    padding: 0 3%;
   }
+
+  .header-logoImg {
+    height: 26px;
+  }
+
+  .header-rightGroup {
+    gap: 8px;
+  }
+
+  .header-listBtn {
+    padding: 4px 8px;
+    font-size: 0.84rem;
+  }
+
+  .header-aiPill {
+    padding: 4px 10px;
+    font-size: 0.8rem;
+    gap: 4px;
+  }
+
+  .header-aiIcon {
+    font-size: 0.85rem !important;
+  }
+
+  .header-searchBar {
+    padding: 4px 8px;
+  }
+
+  .header-searchIcon {
+    font-size: 1.15rem !important;
+  }
+
+  .header-searchInput {
+    width: 60px;
+    font-size: 0.8rem;
+  }
+
   .header-searchBar-open .header-searchInput,
   .header-searchInput:focus {
-    width: 140px;
+    width: 130px;
+  }
+
+  .header-searchResults {
+    width: 88vw;
+    max-width: 320px;
+    right: -10px;
+  }
+}
+
+@media (max-width: 480px) {
+  .header-aiPill span {
+    display: none; /* Show only sparkle icon on ultra-small screens */
+  }
+
+  .header-aiPill {
+    padding: 6px 8px;
+    border-radius: 50%;
   }
 }

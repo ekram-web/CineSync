@@ -481,15 +481,89 @@
 }
 
 @media (max-width: 600px) {
+  .aiModal__overlay {
+    padding: 0;
+  }
+
   .aiModal__container {
     height: 100vh;
     max-height: 100vh;
     border-radius: 0;
+    border: none;
   }
+
+  .aiModal__header {
+    padding: 14px 16px;
+  }
+
+  .aiModal__headerTitle h2 {
+    font-size: 1.05rem;
+  }
+
+  .aiModal__headerTitle p {
+    font-size: 0.72rem;
+  }
+
+  .aiModal__chipsContainer {
+    padding: 8px 14px;
+  }
+
+  .aiModal__chip {
+    padding: 5px 11px;
+    font-size: 0.76rem;
+  }
+
+  .aiModal__chatFeed {
+    padding: 14px;
+    gap: 14px;
+  }
+
   .aiModal__moviesGrid {
     grid-template-columns: 1fr;
+    gap: 10px;
   }
+
+  .aiModal__movieCard {
+    border-radius: 8px;
+  }
+
+  .aiModal__posterCol {
+    width: 82px;
+  }
+
+  .aiModal__infoCol {
+    padding: 10px;
+  }
+
+  .aiModal__cardTitle {
+    font-size: 0.88rem;
+  }
+
+  .aiModal__cardReason {
+    font-size: 0.78rem;
+    margin-bottom: 8px;
+  }
+
+  .aiModal__actionBtnPrimary {
+    padding: 5px 10px;
+    font-size: 0.76rem;
+  }
+
   .aiModal__bubbleWrapper {
     max-width: 95%;
+  }
+
+  .aiModal__inputBar {
+    padding: 10px 14px;
+  }
+
+  .aiModal__inputField {
+    padding: 10px 16px;
+    font-size: 0.86rem;
+  }
+
+  .aiModal__sendBtn {
+    width: 38px;
+    height: 38px;
   }
 }

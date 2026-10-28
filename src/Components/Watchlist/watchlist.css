@@ -245,3 +245,34 @@
 .watchlist__cardYear {
   color: #888;
 }
+
+@media (max-width: 600px) {
+  .watchlist__container {
+    padding: 75px 4% 30px;
+  }
+
+  .watchlist__header {
+    margin-bottom: 20px;
+  }
+
+  .watchlist__titleGroup h1 {
+    font-size: 1.5rem;
+  }
+
+  .watchlist__grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+
+  .watchlist__cardInfo {
+    padding: 8px;
+  }
+
+  .watchlist__cardTitle {
+    font-size: 0.82rem;
+  }
+
+  .watchlist__cardMeta {
+    font-size: 0.72rem;
+  }
+}

@@ -269,3 +269,38 @@
   line-height: 1.6;
   color: #bbb;
 }
+
+@media (max-width: 600px) {
+  .movieModal__overlay {
+    padding: 8px;
+  }
+
+  .movieModal__content {
+    max-height: 94vh;
+    border-radius: 10px;
+  }
+
+  .movieModal__backdrop {
+    height: 220px;
+  }
+
+  .movieModal__body {
+    padding: 16px 18px 24px;
+  }
+
+  .movieModal__title {
+    font-size: 1.4rem;
+  }
+
+  .movieModal__actions {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .movieModal__btn {
+    width: 100%;
+    justify-content: center;
+    padding: 10px 16px;
+    font-size: 0.9rem;
+  }
+}

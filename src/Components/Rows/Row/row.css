@@ -72,3 +72,23 @@
     transform: translateY(0);
   }
 }
+
+@media (max-width: 768px) {
+  .row {
+    margin-left: 3%;
+    margin-right: 3%;
+    margin-bottom: 18px;
+  }
+
+  .row-title {
+    font-size: 1.15rem;
+  }
+
+  .row-poster {
+    max-height: 105px;
+  }
+
+  .row-posterLarge {
+    max-height: 180px;
+  }
+}
