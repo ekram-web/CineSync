@@ -1,15 +1,16 @@
 {
   "homepage": "https://ekram-web.github.io/Netflix-clone/",
-  "name": "netflix-clone",
+  "name": "cinesync",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "start": "node server.js",
+    "server": "node server.js",
     "lint": "eslint .",
     "preview": "vite preview",
-    "server": "node server.js",
     "predeploy": "npm run build",
     "deploy": "gh-pages -d dist"
   },

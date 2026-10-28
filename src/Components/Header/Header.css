@@ -28,22 +28,50 @@
   align-items: center;
 }
 
-/* Left: ONLY the Logo */
+/* Left: CineSync Brand Logo */
 .header-brandOnly {
   cursor: pointer;
   display: flex;
   align-items: center;
 }
 
-.header-logoImg {
-  height: 32px;
-  width: auto;
-  object-fit: contain;
-  transition: transform 0.2s ease, opacity 0.2s;
+.header-logoCineSync {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  user-select: none;
+  transition: transform 0.2s ease;
 }
 
-.header-logoImg:hover {
-  transform: scale(1.05);
+.header-logoCineSync:hover {
+  transform: scale(1.04);
+}
+
+.header-logoSvg {
+  width: 36px;
+  height: 36px;
+  filter: drop-shadow(0 2px 8px rgba(229, 9, 20, 0.45));
+}
+
+.header-logoText {
+  font-size: 1.55rem;
+  font-weight: 900;
+  letter-spacing: -0.5px;
+  color: #ffffff;
+  font-family: "Roboto", -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+  display: flex;
+  align-items: center;
+  line-height: 1;
+}
+
+.header-logoTextAccent {
+  color: #e50914;
+  margin-left: 1px;
+  background: linear-gradient(135deg, #ff1a2a, #e50914);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 0 10px rgba(229, 9, 20, 0.5));
 }
 
 /* Right Group: Search, My List, AI Match ONLY */
@@ -270,8 +298,13 @@
     padding: 0 3%;
   }
 
-  .header-logoImg {
-    height: 26px;
+  .header-logoSvg {
+    width: 28px;
+    height: 28px;
+  }
+
+  .header-logoText {
+    font-size: 1.25rem;
   }
 
   .header-rightGroup {

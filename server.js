@@ -19,7 +19,16 @@ const io = new Server(server, {
 // roomId -> { movieId, movieTitle, trailerUrl, hostId, isPlaying, currentTime, lastSyncTime, users: [] }
 const rooms = new Map();
 
-app.get("/", (req, res) => {
+import path from "path";
+import { fileURLToPath } from "url";
+import fs from "fs";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const distPath = path.join(__dirname, "dist");
+
+// Health check endpoint
+app.get("/health", (req, res) => {
   res.json({
     status: "online",
     message: "CineSync Real-Time WebSocket Server Running",
@@ -34,6 +43,25 @@ app.get("/api/rooms/:roomId", (req, res) => {
   }
   res.json(room);
 });
+
+// Full-Stack Static Serving: Serve frontend if dist/ exists (Render/Railway unified deployment)
+if (fs.existsSync(distPath)) {
+  app.use(express.static(distPath));
+  app.use((req, res, next) => {
+    if (req.method === "GET" && !req.path.startsWith("/api") && !req.path.startsWith("/health")) {
+      return res.sendFile(path.join(distPath, "index.html"));
+    }
+    next();
+  });
+} else {
+  app.get("/", (req, res) => {
+    res.json({
+      status: "online",
+      message: "CineSync Real-Time WebSocket Server Running",
+      activeRooms: rooms.size,
+    });
+  });
+}
 
 io.on("connection", (socket) => {
   console.log(`[Socket Connected] ID: ${socket.id}`);
